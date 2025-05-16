@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
     <title>Прогноз погоды</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -32,7 +32,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 16px;
+            padding: 12px;
         }
         
         .container {
@@ -42,6 +42,58 @@
             flex-direction: column;
             align-items: center;
             gap: 16px;
+            margin: 0 auto;
+            transition: transform 0.3s ease;
+        }
+        
+        @media screen and (max-width: 420px) {
+            body {
+                padding: 8px;
+            }
+            
+            .card {
+                margin-bottom: 12px;
+            }
+            
+            .weather-details {
+                gap: 8px;
+                padding: 12px;
+            }
+            
+            .temp {
+                font-size: 48px;
+            }
+            
+            .forecast-day-item {
+                min-width: 70px;
+            }
+        }
+        
+        @media screen and (max-width: 320px) {
+            body {
+                padding: 6px;
+            }
+            
+            .temp {
+                font-size: 42px;
+            }
+            
+            .temp-unit {
+                font-size: 20px;
+            }
+            
+            .detail-value {
+                font-size: 14px;
+            }
+            
+            .city {
+                font-size: 16px;
+            }
+            
+            .forecast-day-item {
+                min-width: 65px;
+                padding: 8px 4px;
+            }
         }
         
         .card {
@@ -113,7 +165,7 @@
         }
         
         .temp {
-            font-size: 64px;
+            font-size: 56px;
             font-weight: 700;
             line-height: 1;
             color: var(--text-primary);
@@ -152,7 +204,7 @@
         }
         
         .description {
-            font-size: 16px;
+            font-size: 15px;
             color: var(--text-secondary);
             margin-top: 8px;
             text-align: left;
@@ -161,8 +213,8 @@
         .weather-details {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 16px;
-            margin-top: 32px;
+            gap: 10px;
+            margin-top: 20px;
             background: var(--card-overlay);
             border-radius: 12px;
             padding: 16px;
@@ -183,19 +235,19 @@
         }
         
         .detail-label {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             color: var(--text-primary);
         }
         
         .detail-value {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 600;
             color: var(--text-primary);
         }
         
         .section-title {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 500;
             color: var(--text-secondary);
             margin-bottom: 16px;
@@ -394,8 +446,8 @@
         .forecast-day-item {
             flex: 0 0 auto;
             text-align: center;
-            padding: 16px;
-            min-width: 90px;
+            padding: 10px 6px;
+            min-width: 75px;
             background: var(--card-overlay);
             margin-right: 10px;
             border-radius: 16px;
@@ -435,9 +487,9 @@
             background-color: var(--card-from);
             color: var(--text-primary);
             border: none;
-            padding: 12px 24px;
+            padding: 10px 20px;
             border-radius: 50px;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 500;
             cursor: pointer;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -628,6 +680,14 @@
         // Инициализация Telegram WebApp
         const tg = window.Telegram.WebApp;
         tg.expand();
+        tg.ready(); // Сообщаем Telegram WebApp, что приложение готово к отображению
+
+        // Настройка внешнего вида приложения в соответствии с темой Telegram
+        document.documentElement.style.setProperty('--bg-color', tg.themeParams.bg_color || '#121212');
+        document.documentElement.style.setProperty('--text-primary', tg.themeParams.text_color || '#ffffff');
+        document.documentElement.style.setProperty('--text-secondary', tg.themeParams.hint_color || 'rgba(255, 255, 255, 0.8)');
+        document.documentElement.style.setProperty('--card-from', tg.themeParams.button_color || '#3b82f6');
+        document.documentElement.style.setProperty('--card-to', tg.themeParams.button_text_color || '#4f46e5');
 
         // Глобальная переменная для хранения данных о погоде
         window.weatherData = null;
@@ -693,7 +753,7 @@
                 windspeed_unit: 'ms'
             });
             const url = `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
-            
+
             fetch(url)
                 .then(response => {
                     if (!response.ok) {
@@ -765,7 +825,7 @@
         function getWeatherIconOpenMeteo(code, isDay = true) {
             // Простое сопоставление с несколькими SVG иконками (можно расширить)
             // Используем существующие классы и структуру, но src будет data URI или путь к локальному SVG
-            // Для простоты пока будем возвращать текстовое описание или emoji, 
+            // Для простоты пока будем возвращать текстовую иконку или emoji, 
             // так как вставка множества SVG через edit_file затруднительна.
             // Или используем очень базовые SVG, которые уже есть.
 
@@ -826,7 +886,7 @@
                 if (!newIconEl) {
                     newIconEl = document.createElement('span');
                     newIconEl.className = 'text-weather-icon';
-                    newIconEl.style.fontSize = '64px'; // Как у старой иконки
+                    newIconEl.style.fontSize = '56px';
                     iconContainer.appendChild(newIconEl);
                 }
                 newIconEl.textContent = iconText;
@@ -840,7 +900,7 @@
                 showError('Ошибка при отображении данных о текущей погоде');
             }
         }
-        
+
         // Обновленная функция для прогноза на 3 дня (кратко)
         function displayForecastOpenMeteo(dailyData) {
             const forecastEl = document.getElementById('forecast');
@@ -891,17 +951,17 @@
 
         // Обновленная функция для расширенного прогноза (карточки по дням)
         function displayExtendedForecastOpenMeteo(dailyData) {
-            const forecastDaysEl = document.getElementById('forecastDays');
-            forecastDaysEl.innerHTML = '';
+    const forecastDaysEl = document.getElementById('forecastDays');
+    forecastDaysEl.innerHTML = '';
 
             if (!dailyData || !dailyData.time || dailyData.time.length === 0) {
                 console.error('Нет данных о прогнозе для displayExtendedForecastOpenMeteo');
-                forecastDaysEl.innerHTML = '<div style="text-align: center; padding: 20px; color: white;">Нет данных о прогнозе</div>';
-                return;
-            }
+        forecastDaysEl.innerHTML = '<div style="text-align: center; padding: 20px; color: white;">Нет данных о прогнозе</div>';
+        return;
+    }
 
-            const days = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
-            const months = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    const days = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+    const months = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
 
             // Показываем прогноз на все доступные дни (до 10 дней, включая сегодняшний)
             dailyData.time.forEach((dateStr, i) => {
@@ -915,12 +975,12 @@
                 tomorrow.setDate(tomorrow.getDate() + 1);
 
                 if (forecastDate.toDateString() === today.toDateString()) {
-                    dayName = 'Сегодня';
+            dayName = 'Сегодня';
                 } else if (forecastDate.toDateString() === tomorrow.toDateString()) {
-                    dayName = 'Завтра';
-                } else {
-                    dayName = days[forecastDate.getDay()];
-                }
+            dayName = 'Завтра';
+        } else {
+            dayName = days[forecastDate.getDay()];
+        }
 
                 const dateDisplayStr = `${forecastDate.getDate()} ${months[forecastDate.getMonth()]}`;
                 const tempDay = Math.round(dailyData.temperature_2m_max[i]);
@@ -931,23 +991,23 @@
                 const iconHtml = `<span class="forecast-day-icon" style="font-size: 40px;">${iconText}</span>`;
 
 
-                const forecastDayItem = document.createElement('div');
-                forecastDayItem.className = 'forecast-day-item';
-                forecastDayItem.innerHTML = `
-                    <div class="forecast-day-name">${dayName}</div>
+        const forecastDayItem = document.createElement('div');
+        forecastDayItem.className = 'forecast-day-item';
+        forecastDayItem.innerHTML = `
+            <div class="forecast-day-name">${dayName}</div>
                     <div class="forecast-day-date">${dateDisplayStr}</div>
                     ${iconHtml}
-                    <div class="forecast-day-temp">днём ${tempDay}°</div>
-                    <div class="forecast-day-temp-night">ночью ${tempNight}°</div>
-                `;
-                forecastDaysEl.appendChild(forecastDayItem);
+            <div class="forecast-day-temp">днём ${tempDay}°</div>
+            <div class="forecast-day-temp-night">ночью ${tempNight}°</div>
+        `;
+        forecastDaysEl.appendChild(forecastDayItem);
             });
 
-            if (forecastDaysEl.children.length === 0) {
-                forecastDaysEl.innerHTML = '<div style="text-align: center; padding: 20px; color: white;">Не удалось отобразить прогноз</div>';
-            }
-        }
-        
+    if (forecastDaysEl.children.length === 0) {
+        forecastDaysEl.innerHTML = '<div style="text-align: center; padding: 20px; color: white;">Не удалось отобразить прогноз</div>';
+    }
+}
+
         // Обновленная функция для восхода/заката
         function displaySunriseSunsetOpenMeteo(sunriseISO, sunsetISO, daylightDurationSeconds) {
             const sunriseDate = new Date(sunriseISO);
@@ -959,7 +1019,7 @@
             const daylightHours = Math.floor(daylightDurationSeconds / 3600);
             const daylightMinutes = Math.floor((daylightDurationSeconds % 3600) / 60);
             document.getElementById('daylightTime').textContent = `${daylightHours} ч ${daylightMinutes} мин`;
-            
+
             // Фазу луны и магнитное поле Open-Meteo не предоставляет в этом запросе, оставляем заглушки
             const moonPhases = ['Новолуние', 'Растущая луна', 'Первая четверть', 'Растущая луна',
                                'Полнолуние', 'Убывающая луна', 'Последняя четверть', 'Убывающая луна'];
@@ -974,7 +1034,7 @@
             let uvLevel = uvIndex !== null && uvIndex !== undefined ? Math.round(uvIndex) : 0;
             document.getElementById('uvIndex').textContent = uvLevel;
         }
-        
+
         // Обновленная функция для фона
         function updateBackgroundOpenMeteo(weatherCode, isDay) {
             let gradientFrom, gradientTo;
@@ -1040,33 +1100,71 @@
         }
 
         // Обработчики для вкладок прогноза
-        const forecastTabs = document.querySelectorAll('.forecast-tab');
-        const forecastContent = document.createElement('div');
-        forecastContent.id = 'monthly-forecast';
-        forecastContent.style.display = 'none';
-        forecastContent.innerHTML = '<p style="text-align: center; padding: 20px;">Прогноз на месяц доступен в премиум-версии</p>';
-        document.querySelector('.forecast-scroll').appendChild(forecastContent);
+const forecastTabs = document.querySelectorAll('.forecast-tab');
+const forecastContent = document.createElement('div');
+forecastContent.id = 'monthly-forecast';
+forecastContent.style.display = 'none';
+forecastContent.innerHTML = '<p style="text-align: center; padding: 20px;">Прогноз на месяц доступен в премиум-версии</p>';
+document.querySelector('.forecast-scroll').appendChild(forecastContent);
 
-        forecastTabs.forEach((tab, index) => {
-            tab.addEventListener('click', () => {
-                // Удаляем активный класс со всех вкладок
-                forecastTabs.forEach(t => t.classList.remove('active'));
+forecastTabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => {
+        // Удаляем активный класс со всех вкладок
+        forecastTabs.forEach(t => t.classList.remove('active'));
 
-                // Добавляем активный класс выбранной вкладке
-                tab.classList.add('active');
+        // Добавляем активный класс выбранной вкладке
+        tab.classList.add('active');
 
-                // Переключаем содержимое в зависимости от выбранной вкладки
-                if (index === 0) {
-                    // Подробный прогноз - показываем прогноз на 10 дней
-                    document.getElementById('forecastDays').style.display = 'flex';
-                    document.getElementById('monthly-forecast').style.display = 'none';
-                } else {
-                    // На месяц - показываем сообщение о премиум-версии
-                    document.getElementById('forecastDays').style.display = 'none';
-                    document.getElementById('monthly-forecast').style.display = 'block';
-                }
-            });
-        });
+        // Переключаем содержимое в зависимости от выбранной вкладки
+        if (index === 0) {
+            // Подробный прогноз - показываем прогноз на 10 дней
+            document.getElementById('forecastDays').style.display = 'flex';
+            document.getElementById('monthly-forecast').style.display = 'none';
+        } else {
+            // На месяц - показываем сообщение о премиум-версии
+            document.getElementById('forecastDays').style.display = 'none';
+            document.getElementById('monthly-forecast').style.display = 'block';
+        }
+    });
+});
+
+// Функция для автоматического масштабирования контента под размер устройства
+function adjustScale() {
+    // Получаем размеры окна (в Telegram WebApp это будет размер iframe)
+    const windowWidth = window.innerWidth;
+    const containerEl = document.querySelector('.container');
+    
+    // Базовый размер для дизайна (ширина контейнера из CSS)
+    const baseWidth = 400;
+    
+    // Настройка для Telegram WebApp
+    if (tg && tg.viewportStableHeight) {
+        // Устанавливаем высоту контейнера равной высоте вьюпорта Telegram
+        document.body.style.minHeight = tg.viewportStableHeight + 'px';
+    }
+    
+    // Рассчитываем оптимальный масштаб в зависимости от размера экрана
+    if (windowWidth < baseWidth) {
+        // Для малых экранов масштабируем контент
+        const scale = windowWidth / baseWidth;
+        // Применяем масштаб с ограничением минимального значения
+        const finalScale = Math.max(scale, 0.8);
+        containerEl.style.transform = `scale(${finalScale})`;
+        containerEl.style.transformOrigin = 'top center';
+        // Компенсируем высоту при масштабировании
+        containerEl.style.marginBottom = `${(1 - finalScale) * 300}px`;
+    } else {
+        // Для больших экранов сбрасываем масштаб
+        containerEl.style.transform = 'none';
+        containerEl.style.marginBottom = '0';
+    }
+}
+
+// Вызываем функцию при загрузке
+window.addEventListener('load', adjustScale);
+
+// И при изменении размера окна
+window.addEventListener('resize', adjustScale);
     </script>
 </body>
 </html>
