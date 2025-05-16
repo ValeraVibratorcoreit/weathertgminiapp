@@ -70,7 +70,7 @@
         
         .card-content {
             position: relative;
-            padding: 24px;
+            padding: 16px;
         }
         
         .card-header {
@@ -629,9 +629,6 @@
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        // Ваш API ключ WeatherAPI
-        const apiKey = '133872561d43482780a151135251605';
-
         // Глобальная переменная для хранения данных о погоде
         window.weatherData = null;
 
@@ -676,7 +673,6 @@
         function successCallback(position) {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
-            fetchCurrentWeather(lat, lon);
             fetchForecast(lat, lon);
         }
 
@@ -685,31 +681,19 @@
             showError('Ошибка при получении местоположения: ' + error.message);
         }
 
-        function fetchCurrentWeather(lat, lon) {
-            const url = `https://api.weatherapi.com/v1/current.json?key=${apiKey}&q=${lat},${lon}&lang=ru`;
-
-            fetch(url)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! Status: ${response.status}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    displayCurrentWeather(data);
-                    // Данные для восхода/заката и УФ-индекса теперь получаем из forecast API
-                    // hideLoading() и weatherContentEl.style.display = 'block' будут вызываться в fetchForecast
-                })
-                .catch(error => {
-                    console.error('Error fetching current weather:', error);
-                    hideLoading();
-                    showError('Ошибка при получении данных о текущей погоде. Попробуйте позже.');
-                });
-        }
-
         function fetchForecast(lat, lon) {
-            // Для бесплатного ключа WeatherAPI доступен прогноз на 3 дня
-            const url = `https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${lat},${lon}&days=3&lang=ru&aqi=no&alerts=no`;
+            const params = new URLSearchParams({
+                latitude: lat,
+                longitude: lon,
+                current_weather: true,
+                daily: 'weathercode,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,daylight_duration,precipitation_sum',
+                hourly: 'temperature_2m,relativehumidity_2m,weathercode,surface_pressure,is_day',
+                forecast_days: 10,
+                timezone: 'auto',
+                windspeed_unit: 'ms'
+            });
+            const url = `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
+            
             fetch(url)
                 .then(response => {
                     if (!response.ok) {
@@ -718,122 +702,176 @@
                     return response.json();
                 })
                 .then(data => {
-                    console.log('Полученные данные WeatherAPI:', data); // Отладка
-                    window.weatherData = data; // Сохраняем все данные, чтобы displayCurrentWeather мог их использовать
+                    console.log('Полученные данные Open-Meteo:', data); // Отладка
+                    window.weatherData = data;
 
-                    // Отображаем текущую погоду, используя данные из forecast ответа, т.к. он содержит и current, и forecast
-                    displayCurrentWeather(data); 
+                    displayCurrentWeatherOpenMeteo(data);
+                    displayForecastOpenMeteo(data.daily);
+                    displayExtendedForecastOpenMeteo(data.daily);
                     
-                    displayForecast(data.forecast.forecastday);
-                    displayExtendedForecast(data.forecast.forecastday); // Используем тот же прогноз на 3 дня
-                    
-                    // Восход/закат берем из первого дня прогноза
-                    if (data.forecast && data.forecast.forecastday && data.forecast.forecastday.length > 0) {
-                        displaySunriseSunset(data.forecast.forecastday[0].astro.sunrise, data.forecast.forecastday[0].astro.sunset, data.location.localtime_epoch);
+                    if (data.daily && data.daily.sunrise && data.daily.sunset && data.daily.daylight_duration) {
+                        displaySunriseSunsetOpenMeteo(data.daily.sunrise[0], data.daily.sunset[0], data.daily.daylight_duration[0]);
                     }
-                    // УФ-индекс из текущей погоды
-                    displayUVIndex(data.current.uv);
+                    if (data.daily && data.daily.uv_index_max) {
+                        displayUVIndexOpenMeteo(data.daily.uv_index_max[0]);
+                    }
                     
                     hideLoading();
                     weatherContentEl.style.display = 'block';
-                    getLocationBtn.style.display = 'none';
+                    getLocationBtn.style.display = 'none'; 
                 })
                 .catch(error => {
-                    console.error('Ошибка получения прогноза WeatherAPI:', error);
-                    // fetchFallbackForecast(lat, lon); // Пока уберем fallback, т.к. он для OpenWeatherMap
+                    console.error('Ошибка получения прогноза Open-Meteo:', error);
                     hideLoading();
                     showError('Ошибка при получении данных о прогнозе погоды. Попробуйте позже.');
                 });
         }
 
-        function displayCurrentWeather(data) {
-            try {
-                // Используем данные из data.location и data.current
-                const location = data.location;
-                const current = data.current;
+        // Вспомогательные функции для Open-Meteo
+        function getWeatherDescriptionOpenMeteo(code) {
+            const descriptions = {
+                0: 'Ясно',
+                1: 'В основном ясно',
+                2: 'Переменная облачность',
+                3: 'Пасмурно',
+                45: 'Туман',
+                48: 'Изморозь',
+                51: 'Морось: легкая',
+                53: 'Морось: умеренная',
+                55: 'Морось: сильная',
+                56: 'Ледяная морось: легкая',
+                57: 'Ледяная морось: сильная',
+                61: 'Дождь: слабый',
+                63: 'Дождь: умеренный',
+                65: 'Дождь: сильный',
+                66: 'Ледяной дождь: слабый',
+                67: 'Ледяной дождь: сильный',
+                71: 'Снег: слабый',
+                73: 'Снег: умеренный',
+                75: 'Снег: сильный',
+                77: 'Снежные зерна',
+                80: 'Ливень: слабый',
+                81: 'Ливень: умеренный',
+                82: 'Ливень: сильный',
+                85: 'Снегопад: слабый',
+                86: 'Снегопад: сильный',
+                95: 'Гроза: слабая или умеренная',
+                96: 'Гроза с градом: слабая',
+                99: 'Гроза с градом: сильная'
+            };
+            return descriptions[code] || 'Нет данных';
+        }
 
-                // Город
-                document.getElementById('city').textContent = location.name;
+        function getWeatherIconOpenMeteo(code, isDay = true) {
+            // Простое сопоставление с несколькими SVG иконками (можно расширить)
+            // Используем существующие классы и структуру, но src будет data URI или путь к локальному SVG
+            // Для простоты пока будем возвращать текстовое описание или emoji, 
+            // так как вставка множества SVG через edit_file затруднительна.
+            // Или используем очень базовые SVG, которые уже есть.
+
+            // Пример использования текстовых эмодзи:
+            if (code === 0) return isDay ? '☀️' : '🌙'; // Ясно
+            if (code >= 1 && code <= 3) return '☁️'; // Облачно
+            if (code === 45 || code === 48) return '🌫️'; // Туман
+            if (code >= 51 && code <= 67) return '🌧️'; // Дождь/Морось
+            if (code >= 71 && code <= 77) return '❄️'; // Снег
+            if (code >= 80 && code <= 82) return '🌦️'; // Ливень
+            if (code >= 85 && code <= 86) return '🌨️'; // Снегопад
+            if (code >= 95 && code <= 99) return '⛈️'; // Гроза
+            return '🌍'; // По умолчанию
+        }
+        
+        // Обновленная функция отображения текущей погоды
+        function displayCurrentWeatherOpenMeteo(data) {
+            try {
+                const current = data.current_weather;
+                const daily = data.daily; // Для УФ
+
+                // Город - OpenMeteo не дает имя, используем общее название или координаты
+                document.getElementById('city').textContent = 'Текущее местоположение';
 
                 // Температура
-                const tempC = Math.round(current.temp_c);
+                const tempC = Math.round(current.temperature); // OpenMeteo current.temperature -> current_weather.temperature_2m (если hourly) или current_weather.temperature
                 document.getElementById('temp').textContent = tempC;
 
                 // Описание погоды
-                document.getElementById('description').textContent = current.condition.text;
+                document.getElementById('description').textContent = getWeatherDescriptionOpenMeteo(current.weathercode);
 
                 // Влажность
-                document.getElementById('humidity').textContent = `${current.humidity}%`;
+                const humidity = current.relativehumidity_2m !== undefined ? current.relativehumidity_2m : '--';
+                document.getElementById('humidity').textContent = `${humidity}%`;
 
-                // Ветер (WeatherAPI дает в км/ч, переводим в м/с)
-                const windSpeedKph = current.wind_kph;
-                const windSpeedMps = Math.round(windSpeedKph / 3.6);
+
+                // Ветер (OpenMeteo current.windspeed -> current_weather.windspeed_10m, unit уже в м/с)
+                const windSpeedMps = Math.round(current.windspeed);
                 document.getElementById('wind').textContent = `${windSpeedMps} м/с`;
 
-                // Давление (WeatherAPI дает в миллибарах (гПа), переводим в мм рт.ст.)
-                const pressureMb = current.pressure_mb;
-                const pressureMm = Math.round(pressureMb * 0.750062);
+                // Давление
+                const pressureHpa = current.surface_pressure !== undefined ? current.surface_pressure : 1013; // Default if missing, 1013 hPa is standard pressure
+                const pressureMm = Math.round(pressureHpa * 0.750062);
                 document.getElementById('pressure').textContent = `${pressureMm} мм`;
 
-                // Иконка погоды (WeatherAPI предоставляет URL)
-                // Убедимся, что URL начинается с https:
-                let iconUrl = current.condition.icon;
-                if (iconUrl.startsWith('//')) {
-                    iconUrl = 'https:' + iconUrl;
+                // Иконка погоды
+                // Заменяем src на текстовую иконку или data URI SVG
+                const weatherIconEl = document.getElementById('weatherIcon');
+                const iconText = getWeatherIconOpenMeteo(current.weathercode, current.is_day === 1);
+                // Для img тега это не подойдет напрямую. Нужно либо менять img на span, либо генерировать SVG data URI.
+                // Пока что просто скроем img и покажем текст в description
+                weatherIconEl.style.display = 'none'; // Скрываем старый img тэг
+                // Можно создать новый элемент для текстовой иконки или добавить к description
+                // document.getElementById('description').textContent = `${iconText} ${getWeatherDescriptionOpenMeteo(current.weathercode)}`;
+                // Лучше обновить иконку в .weather-icon-container каким-то образом
+                const iconContainer = weatherIconEl.parentElement;
+                let newIconEl = iconContainer.querySelector('.text-weather-icon');
+                if (!newIconEl) {
+                    newIconEl = document.createElement('span');
+                    newIconEl.className = 'text-weather-icon';
+                    newIconEl.style.fontSize = '64px'; // Как у старой иконки
+                    iconContainer.appendChild(newIconEl);
                 }
-                document.getElementById('weatherIcon').src = iconUrl;
-                
+                newIconEl.textContent = iconText;
+
+
                 // Обновляем фон в зависимости от погоды и времени суток
-                // WeatherAPI предоставляет is_day (1 - день, 0 - ночь)
-                // И код состояния погоды current.condition.code
-                updateBackground(current.condition.code, current.is_day === 1);
+                updateBackgroundOpenMeteo(current.weathercode, current.is_day === 1);
 
             } catch (error) {
-                console.error('Error displaying weather data:', error);
-                showError('Ошибка при отображении данных о погоде');
+                console.error('Error displaying OpenMeteo current weather data:', error);
+                showError('Ошибка при отображении данных о текущей погоде');
             }
         }
-
-        function displayForecast(forecastDays) { // forecastDays это data.forecast.forecastday
+        
+        // Обновленная функция для прогноза на 3 дня (кратко)
+        function displayForecastOpenMeteo(dailyData) {
             const forecastEl = document.getElementById('forecast');
             forecastEl.innerHTML = '';
 
             const days = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
             const months = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
 
-            // Показываем прогноз на следующие дни (пропускаем сегодняшний, если он есть в массиве, обычно WeatherAPI отдает начиная с текущего дня)
-            // Если первый элемент - сегодня, начинаем с i = 1. Если уже завтра - с i = 0.
-            // Для WeatherAPI forecastday[0] - это сегодня. Нам нужен прогноз со следующего дня для этого блока.
-            // Бесплатный API дает 3 дня, включая сегодняшний. Значит, выводим [1] и [2] элементы.
-            for (let i = 1; i < forecastDays.length; i++) { 
-                const forecast = forecastDays[i];
-                const forecastDate = new Date(forecast.date_epoch * 1000);
+            // OpenMeteo dailyData.time[0] - сегодня. Нам нужен прогноз со следующего дня, до 10 дней.
+            // Отображаем 2 дня в этом блоке (завтра и послезавтра), как было раньше для краткого прогноза.
+            for (let i = 1; i < Math.min(3, dailyData.time.length); i++) { // Оставляем 2 дня (i=1, i=2) для этого блока
+                const forecastDate = new Date(dailyData.time[i]);
                 let dayName;
 
-                if (i === 1 && new Date(forecastDays[0].date_epoch * 1000).toDateString() === new Date().toDateString()) {
-                     // Если forecastDays[0] это сегодня, то forecastDays[1] это завтра
+                if (i === 1) {
                     dayName = 'Завтра';
-                } else if (i === 0 && new Date(forecast.date_epoch * 1000).toDateString() !== new Date().toDateString()){
-                    // Если API вернуло массив уже с завтрашнего дня
-                     dayName = 'Завтра';
-                }
-                else {
+                } else {
                     const dayOfWeek = days[forecastDate.getDay()];
                     const dayOfMonth = forecastDate.getDate();
                     const month = months[forecastDate.getMonth()];
                     dayName = `${dayOfWeek}, ${dayOfMonth} ${month}`;
                 }
 
-                const tempDay = Math.round(forecast.day.maxtemp_c);
-                const tempNight = Math.round(forecast.day.mintemp_c);
+                const tempDay = Math.round(dailyData.temperature_2m_max[i]);
+                const tempNight = Math.round(dailyData.temperature_2m_min[i]);
                 
-                let iconUrl = forecast.day.condition.icon;
-                if (iconUrl.startsWith('//')) {
-                    iconUrl = 'https:' + iconUrl;
-                }
+                const iconText = getWeatherIconOpenMeteo(dailyData.weathercode[i], true); // true для isDay, т.к. это дневной прогноз
 
-                // Используем img тэг для иконок WeatherAPI
-                const iconHtml = `<img class="forecast-icon" src="${iconUrl}" alt="${forecast.day.condition.text}">`;
+                // Используем текстовую иконку
+                const iconHtml = `<span class="forecast-icon" style="font-size: 24px;">${iconText}</span>`;
+
 
                 const forecastItem = document.createElement('div');
                 forecastItem.className = 'forecast-item';
@@ -851,170 +889,132 @@
             }
         }
 
-        function displayExtendedForecast(dailyData) { // dailyData это data.forecast.forecastday
-    const forecastDaysEl = document.getElementById('forecastDays');
-    forecastDaysEl.innerHTML = '';
+        // Обновленная функция для расширенного прогноза (карточки по дням)
+        function displayExtendedForecastOpenMeteo(dailyData) {
+            const forecastDaysEl = document.getElementById('forecastDays');
+            forecastDaysEl.innerHTML = '';
 
-    if (!dailyData || dailyData.length === 0) {
-        console.error('Нет данных о прогнозе для displayExtendedForecast');
-        forecastDaysEl.innerHTML = '<div style="text-align: center; padding: 20px; color: white;">Нет данных о прогнозе</div>';
-        return;
-    }
+            if (!dailyData || !dailyData.time || dailyData.time.length === 0) {
+                console.error('Нет данных о прогнозе для displayExtendedForecastOpenMeteo');
+                forecastDaysEl.innerHTML = '<div style="text-align: center; padding: 20px; color: white;">Нет данных о прогнозе</div>';
+                return;
+            }
 
-    const days = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
-    const months = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+            const days = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+            const months = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
 
-    // Показываем прогноз на все доступные дни (WeatherAPI возвращает 3 дня, включая сегодняшний)
-    dailyData.forEach((forecast, i) => {
-        const forecastDate = new Date(forecast.date_epoch * 1000);
-        let dayName;
+            // Показываем прогноз на все доступные дни (до 10 дней, включая сегодняшний)
+            dailyData.time.forEach((dateStr, i) => {
+                if (i >= 10) return; // Показываем до 10 дней
 
-        const today = new Date();
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
+                const forecastDate = new Date(dateStr);
+                let dayName;
 
-        if (forecastDate.toDateString() === today.toDateString()) {
-            dayName = 'Сегодня';
-        } else if (forecastDate.toDateString() === tomorrow.toDateString()) {
-            dayName = 'Завтра';
-        } else {
-            dayName = days[forecastDate.getDay()];
+                const today = new Date();
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+
+                if (forecastDate.toDateString() === today.toDateString()) {
+                    dayName = 'Сегодня';
+                } else if (forecastDate.toDateString() === tomorrow.toDateString()) {
+                    dayName = 'Завтра';
+                } else {
+                    dayName = days[forecastDate.getDay()];
+                }
+
+                const dateDisplayStr = `${forecastDate.getDate()} ${months[forecastDate.getMonth()]}`;
+                const tempDay = Math.round(dailyData.temperature_2m_max[i]);
+                const tempNight = Math.round(dailyData.temperature_2m_min[i]);
+                
+                const iconText = getWeatherIconOpenMeteo(dailyData.weathercode[i], true);
+                // Используем текстовую иконку
+                const iconHtml = `<span class="forecast-day-icon" style="font-size: 40px;">${iconText}</span>`;
+
+
+                const forecastDayItem = document.createElement('div');
+                forecastDayItem.className = 'forecast-day-item';
+                forecastDayItem.innerHTML = `
+                    <div class="forecast-day-name">${dayName}</div>
+                    <div class="forecast-day-date">${dateDisplayStr}</div>
+                    ${iconHtml}
+                    <div class="forecast-day-temp">днём ${tempDay}°</div>
+                    <div class="forecast-day-temp-night">ночью ${tempNight}°</div>
+                `;
+                forecastDaysEl.appendChild(forecastDayItem);
+            });
+
+            if (forecastDaysEl.children.length === 0) {
+                forecastDaysEl.innerHTML = '<div style="text-align: center; padding: 20px; color: white;">Не удалось отобразить прогноз</div>';
+            }
         }
-
-        const dateStr = `${forecastDate.getDate()} ${months[forecastDate.getMonth()]}`;
-        const tempDay = Math.round(forecast.day.maxtemp_c);
-        const tempNight = Math.round(forecast.day.mintemp_c);
         
-        let iconUrl = forecast.day.condition.icon;
-        if (iconUrl.startsWith('//')) {
-            iconUrl = 'https:' + iconUrl;
-        }
+        // Обновленная функция для восхода/заката
+        function displaySunriseSunsetOpenMeteo(sunriseISO, sunsetISO, daylightDurationSeconds) {
+            const sunriseDate = new Date(sunriseISO);
+            const sunsetDate = new Date(sunsetISO);
 
-        const forecastDayItem = document.createElement('div');
-        forecastDayItem.className = 'forecast-day-item';
-        forecastDayItem.innerHTML = `
-            <div class="forecast-day-name">${dayName}</div>
-            <div class="forecast-day-date">${dateStr}</div>
-            <img class="forecast-day-icon" src="${iconUrl}" alt="${forecast.day.condition.text}">
-            <div class="forecast-day-temp">днём ${tempDay}°</div>
-            <div class="forecast-day-temp-night">ночью ${tempNight}°</div>
-        `;
-        forecastDaysEl.appendChild(forecastDayItem);
-    });
+            document.getElementById('sunriseTime').textContent = formatTime(sunriseDate);
+            document.getElementById('sunsetTime').textContent = formatTime(sunsetDate);
 
-    if (forecastDaysEl.children.length === 0) {
-        forecastDaysEl.innerHTML = '<div style="text-align: center; padding: 20px; color: white;">Не удалось отобразить прогноз</div>';
-    }
-}
-        function displaySunriseSunset(sunriseStr, sunsetStr, localtimeEpoch) { // Новая функция для WeatherAPI
-            // WeatherAPI возвращает время в формате "06:57 AM" или "16:30 PM"
-            // Преобразуем это время в объект Date, используя текущую дату местоположения из localtimeEpoch
-            
-            const locationDate = new Date(localtimeEpoch * 1000);
-            const currentYear = locationDate.getFullYear();
-            const currentMonth = locationDate.getMonth(); // 0-11
-            const currentDate = locationDate.getDate();
-
-            const parseTime = (timeStr) => {
-                const [time, modifier] = timeStr.split(' ');
-                let [hours, minutes] = time.split(':').map(Number);
-                if (modifier === 'PM' && hours < 12) hours += 12;
-                if (modifier === 'AM' && hours === 12) hours = 0; // Полночь
-                return new Date(currentYear, currentMonth, currentDate, hours, minutes);
-            };
-
-            const sunriseDate = parseTime(sunriseStr);
-            const sunsetDate = parseTime(sunsetStr);
-
-            const sunriseTime = formatTime(sunriseDate);
-            const sunsetTime = formatTime(sunsetDate);
-
-            document.getElementById('sunriseTime').textContent = sunriseTime;
-            document.getElementById('sunsetTime').textContent = sunsetTime;
-
-            // Рассчитываем продолжительность светового дня
-            const daylightSeconds = (sunsetDate.getTime() - sunriseDate.getTime()) / 1000;
-            const daylightHours = Math.floor(daylightSeconds / 3600);
-            const daylightMinutes = Math.floor((daylightSeconds % 3600) / 60);
-
+            const daylightHours = Math.floor(daylightDurationSeconds / 3600);
+            const daylightMinutes = Math.floor((daylightDurationSeconds % 3600) / 60);
             document.getElementById('daylightTime').textContent = `${daylightHours} ч ${daylightMinutes} мин`;
-
-            // Устанавливаем фазу луны (упрощенно)
+            
+            // Фазу луны и магнитное поле Open-Meteo не предоставляет в этом запросе, оставляем заглушки
             const moonPhases = ['Новолуние', 'Растущая луна', 'Первая четверть', 'Растущая луна',
                                'Полнолуние', 'Убывающая луна', 'Последняя четверть', 'Убывающая луна'];
-            const dayOfMonth = new Date().getDate();
+            const dayOfMonth = new Date().getDate(); // Упрощенная логика
             const moonPhaseIndex = Math.floor((dayOfMonth % 30) / 3.75);
-
             document.getElementById('moonPhase').textContent = moonPhases[moonPhaseIndex];
-            document.getElementById('magneticField').textContent = 'Спокойное'; // Заглушка, WeatherAPI не предоставляет эти данные в бесплатной версии
+            document.getElementById('magneticField').textContent = 'Нет данных';
         }
 
-        function displayUVIndex(uvIndex) {
-            let uvLevel = uvIndex ? Math.round(uvIndex) : 0;
+        // Обновленная функция для УФ-индекса
+        function displayUVIndexOpenMeteo(uvIndex) {
+            let uvLevel = uvIndex !== null && uvIndex !== undefined ? Math.round(uvIndex) : 0;
             document.getElementById('uvIndex').textContent = uvLevel;
         }
-
-        function updateBackground(weatherCode, isDay) { // weatherCode из WeatherAPI, isDay (true/false)
+        
+        // Обновленная функция для фона
+        function updateBackgroundOpenMeteo(weatherCode, isDay) {
             let gradientFrom, gradientTo;
-
-            // Определяем цвета градиента в зависимости от погоды и времени суток
-            // Коды погоды WeatherAPI: https://www.weatherapi.com/docs/weather_conditions.json
+            // WMO Codes: https://open-meteo.com/en/docs (Weather interpretation codes WMO_CODE_WW)
             if (isDay) {
                 // Дневные градиенты
-                if ([1000].includes(weatherCode)) { // Ясно
-                    gradientFrom = '#2193b0'; 
-                    gradientTo = '#6dd5ed';
-                } else if ([1003].includes(weatherCode)) { // Частично облачно
-                    gradientFrom = '#4b79a1';
-                    gradientTo = '#79c1f1';
-                } else if ([1006, 1009].includes(weatherCode)) { // Облачно, пасмурно
-                    gradientFrom = '#606c88';
-                    gradientTo = '#8e9eab';
-                } else if ([1030, 1135, 1147].includes(weatherCode)) { // Туман, ледяной туман
-                    gradientFrom = '#7f7fd5';
-                    gradientTo = '#91eae4';
-                } else if (weatherCode >= 1063 && weatherCode <= 1201 || weatherCode >= 1240 && weatherCode <= 1252) { // Дождь, морось (разные интенсивности)
-                     gradientFrom = '#3e5151';
-                     gradientTo = '#a4b3b6';
-                } else if (weatherCode >= 1204 && weatherCode <= 1237 || weatherCode >= 1255 && weatherCode <= 1264) { // Снег, ледяной дождь (разные интенсивности)
-                    gradientFrom = '#8e9eab';
-                    gradientTo = '#eef2f3';
-                } else if (weatherCode >= 1273 && weatherCode <= 1282) { // Гроза
-                    gradientFrom = '#2c3e50';
-                    gradientTo = '#4ca1af';
-                }
-                 else { // По умолчанию для дня
-                    gradientFrom = '#4b79a1';
-                    gradientTo = '#79c1f1';
+                if (weatherCode === 0) { // Ясно
+                    gradientFrom = '#2193b0'; gradientTo = '#6dd5ed';
+                } else if (weatherCode >= 1 && weatherCode <= 3) { // Облачно (1-ясно, 2-переменная, 3-пасмурно)
+                    gradientFrom = '#4b79a1'; gradientTo = '#79c1f1';
+                } else if (weatherCode === 45 || weatherCode === 48) { // Туман
+                    gradientFrom = '#7f7fd5'; gradientTo = '#91eae4';
+                } else if ((weatherCode >= 51 && weatherCode <= 57) || (weatherCode >= 61 && weatherCode <= 67) || (weatherCode >= 80 && weatherCode <= 82)) { // Морось, Дождь, Ливень
+                     gradientFrom = '#3e5151'; gradientTo = '#a4b3b6';
+                } else if ((weatherCode >= 71 && weatherCode <= 77) || (weatherCode >= 85 && weatherCode <= 86)) { // Снег
+                    gradientFrom = '#8e9eab'; gradientTo = '#eef2f3';
+                } else if (weatherCode >= 95 && weatherCode <= 99) { // Гроза
+                    gradientFrom = '#2c3e50'; gradientTo = '#4ca1af';
+                } else { // По умолчанию для дня
+                    gradientFrom = '#4b79a1'; gradientTo = '#79c1f1';
                 }
             } else {
                 // Ночные градиенты
-                if ([1000].includes(weatherCode)) { // Ясно
-                    gradientFrom = '#0f2027';
-                    gradientTo = '#203a43';
-                } else if ([1003, 1006, 1009].includes(weatherCode)) { // Частично облачно, облачно, пасмурно
-                    gradientFrom = '#232526';
-                    gradientTo = '#414345';
-                } else if ([1030, 1135, 1147].includes(weatherCode)) { // Туман, ледяной туман
-                    gradientFrom = '#2c3e50';
-                    gradientTo = '#3498db';
-                } else if (weatherCode >= 1063 && weatherCode <= 1201 || weatherCode >= 1240 && weatherCode <= 1252) { // Дождь, морось
-                    gradientFrom = '#1f1c2c';
-                    gradientTo = '#4b6cb7';
-                } else if (weatherCode >= 1204 && weatherCode <= 1237 || weatherCode >= 1255 && weatherCode <= 1264) { // Снег, ледяной дождь
-                    gradientFrom = '#243949';
-                    gradientTo = '#517fa4';
-                } else if (weatherCode >= 1273 && weatherCode <= 1282) { // Гроза
-                    gradientFrom = '#0f0c29';
-                    gradientTo = '#302b63';
-                }
-                 else { // По умолчанию для ночи
-                    gradientFrom = '#232526';
-                    gradientTo = '#414345';
+                if (weatherCode === 0) { // Ясно
+                    gradientFrom = '#0f2027'; gradientTo = '#203a43';
+                } else if (weatherCode >= 1 && weatherCode <= 3) { // Облачно
+                    gradientFrom = '#232526'; gradientTo = '#414345';
+                } else if (weatherCode === 45 || weatherCode === 48) { // Туман
+                    gradientFrom = '#2c3e50'; gradientTo = '#3498db';
+                } else if ((weatherCode >= 51 && weatherCode <= 57) || (weatherCode >= 61 && weatherCode <= 67) || (weatherCode >= 80 && weatherCode <= 82)) { // Морось, Дождь, Ливень
+                    gradientFrom = '#1f1c2c'; gradientTo = '#4b6cb7';
+                } else if ((weatherCode >= 71 && weatherCode <= 77) || (weatherCode >= 85 && weatherCode <= 86)) { // Снег
+                    gradientFrom = '#243949'; gradientTo = '#517fa4';
+                } else if (weatherCode >= 95 && weatherCode <= 99) { // Гроза
+                    gradientFrom = '#0f0c29'; gradientTo = '#302b63';
+                } else { // По умолчанию для ночи
+                    gradientFrom = '#232526'; gradientTo = '#414345';
                 }
             }
 
-            // Применяем градиент ко всем карточкам
             const cards = document.querySelectorAll('.card');
             cards.forEach(card => {
                 card.style.background = `linear-gradient(to bottom, ${gradientFrom}, ${gradientTo})`;
