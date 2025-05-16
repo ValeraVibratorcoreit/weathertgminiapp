@@ -221,6 +221,26 @@
             backdrop-filter: blur(4px);
         }
         
+        @media screen and (max-width: 400px) {
+            .weather-details {
+                grid-template-columns: 1fr; /* Одна колонка на узких экранах */
+                gap: 12px; /* Увеличиваем отступ между элементами */
+            }
+            .detail {
+                flex-direction: row; /* Элементы в строке */
+                align-items: center; /* Выравнивание по центру */
+                justify-content: space-between; /* Растягивание по ширине */
+                padding: 8px 0;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1); /* Разделитель */
+            }
+            .detail:last-child {
+                border-bottom: none;
+            }
+            .detail-label {
+                margin-bottom: 0;
+            }
+        }
+        
         .detail {
             display: flex;
             flex-direction: column;
@@ -1130,31 +1150,31 @@ forecastTabs.forEach((tab, index) => {
 
 // Функция для автоматического масштабирования контента под размер устройства
 function adjustScale() {
-    // Получаем размеры окна (в Telegram WebApp это будет размер iframe)
+    // Получаем размеры окна (в Telegram WebApp это может быть размер iframe)
     const windowWidth = window.innerWidth;
     const containerEl = document.querySelector('.container');
     
-    // Базовый размер для дизайна (ширина контейнера из CSS)
-    const baseWidth = 400;
-    
-    // Настройка для Telegram WebApp
+    // Настройка высоты для Telegram WebApp, если доступно
     if (tg && tg.viewportStableHeight) {
-        // Устанавливаем высоту контейнера равной высоте вьюпорта Telegram
+        // Устанавливаем минимальную высоту body равной стабильной высоте вьюпорта Telegram
         document.body.style.minHeight = tg.viewportStableHeight + 'px';
+        // Убедимся, что контейнер занимает доступное пространство
+        containerEl.style.maxWidth = '100%';
+        containerEl.style.width = '100%';
     }
     
-    // Рассчитываем оптимальный масштаб в зависимости от размера экрана
+    // Дополнительные корректировки, если все еще нужно масштабировать на очень маленьких экранах
+    // Хотя медиа-запросы должны справляться лучше, можно оставить небольшой запас
+    // Базовый размер для дизайна (ширина контейнера из CSS)
+    const baseWidth = 400;
     if (windowWidth < baseWidth) {
-        // Для малых экранов масштабируем контент
-        const scale = windowWidth / baseWidth;
-        // Применяем масштаб с ограничением минимального значения
-        const finalScale = Math.max(scale, 0.8);
-        containerEl.style.transform = `scale(${finalScale})`;
-        containerEl.style.transformOrigin = 'top center';
-        // Компенсируем высоту при масштабировании
-        containerEl.style.marginBottom = `${(1 - finalScale) * 300}px`;
+         const scale = windowWidth / baseWidth;
+         const finalScale = Math.max(scale, 0.9); // Изменено минимальное значение масштаба
+         containerEl.style.transform = `scale(${finalScale})`;
+         containerEl.style.transformOrigin = 'top center';
+         // Возможно, потребуется небольшая компенсация отступа снизу
+         containerEl.style.marginBottom = `${(1 - finalScale) * 50}px`; // Уменьшено значение компенсации
     } else {
-        // Для больших экранов сбрасываем масштаб
         containerEl.style.transform = 'none';
         containerEl.style.marginBottom = '0';
     }
